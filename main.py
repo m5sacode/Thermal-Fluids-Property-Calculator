@@ -1,13 +1,16 @@
 import numpy as np
+from fontTools.varLib.models import nonNone
 
 R = 8.314 # J/Mol*K
 
 class GasPart():
-    def __init__(self, name, Mi, A, yi):
+    def __init__(self, name, Mi, A):
         self.name = name
         self.Mi = Mi
         self.A = A
         self.Ri = R/self.Mi
+        self.yi = None
+    def set_yi(self, yi):
         self.yi = yi
     def get_xi(self, M):
         self.xi = self.yi*self.Mi/M
@@ -50,6 +53,10 @@ class GasPart():
         s0i /= Mi
 
         return s0i
+    def get_si(self, T, P, Tref=0.5, Pref=101000):
+        s0i = self.get_s0i(T, Tref)
+        si = s0i-R*np.log(P/Pref)
+        return si
     def get_ui(self, T, Tref=0.5):
         A = self.A
         Mi = self.Mi  # [kg/mol]
@@ -80,10 +87,20 @@ class Gas():
         for GasPart in GasParts:
             GasPart.get_xi(self.M)
     def get_properties(self, T, P, Yi):
+        T = T+273.15
+        P = P*1000
         u = 0
         h = 0
+        Cp = 0
+        Cv = 0
+        s = 0
         for GasPart in self.GasParts:
             u += GasPart.get_ui(T, GasPart.yi)*GasPart.xi
             h += GasPart.get_hi
+            cpi, cvi = GasPart.get_Cpi_Cvi(T)
+            Cp += cpi
+            Cv += cvi
+            s += GasPart.get_si(T, GasPart.yi)
+        k = Cp/Cv
+        return u, h, Cp, Cv, s, k
 
-        return U, h, Cp, Cv, S
