@@ -82,7 +82,7 @@ class GasPart():
 
     def plot_Cp_vs_T(self, T_min=0, T_max=2000, n_points=100):
 
-        T_range = np.linspace(T_min, T_max, n_points)
+        T_range = np.linspace(T_min+273.15, T_max+273.15, n_points)
         Cp_values = []
 
         for T in T_range:
@@ -91,7 +91,7 @@ class GasPart():
 
         # Plot Cp vs T
         plt.figure(figsize=(8, 5))
-        plt.plot(T_range, Cp_values, label=f'{self.name}', lw=2, color='darkred')
+        plt.plot(T_range-273.15, Cp_values, label=f'{self.name}', lw=2, color='darkred')
         plt.xlabel("Temperature [K]", fontsize=12)
         plt.ylabel("Cp [J/kg·K]", fontsize=12)
         plt.title(f"Specific Heat Cp vs Temperature for {self.name}", fontsize=14)
