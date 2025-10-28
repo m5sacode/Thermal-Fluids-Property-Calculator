@@ -24,7 +24,7 @@ class GasPart():
         ki = Cpi / Cvi
         return Cpi, Cvi, ki
 
-    def get_hi(self, T, Tref=298.15):
+    def get_hi(self, T, Tref=0.5):
 
         A = self.A
         Tz = T / 10000
@@ -35,7 +35,7 @@ class GasPart():
             hi += Ai * 10000.0 / (i + 1) * (Tz ** (i + 1) - Tz_ref ** (i + 1))
         return hi
 
-    def get_s0i(self, T, Tref=298.15):
+    def get_s0i(self, T, Tref=0.5):
         A = self.A
         Tz = T / 10000
         Tz_ref = Tref / 10000
@@ -50,14 +50,12 @@ class GasPart():
 
         return s0i
 
-    def get_si(self, T, P, Tref=298.15, Pref=101.325e3):
-
+    def get_si(self, T, P, Tref=0.5, Pref=101e3):
         s0i = self.get_s0i(T, Tref)
         si = s0i - (self.Ri / 1000) * np.log(P / Pref)
         return si
 
-    def get_ui(self, T, Tref=298.15):
-
+    def get_ui(self, T, Tref=0.5):
         A = self.A
         Tz = T / 10000
         Tz_ref = Tref / 10000
@@ -282,3 +280,85 @@ print(f"s⁰     = {s0:.3f} kJ/kg·K")
 print(f"s      = {s:.3f} kJ/kg·K")
 print("=======================================")
 
+# === Table 5S reference data ===
+T_table = np.arange(0, 2001, 200)  # °C
+Cp_table = np.array([
+    1.0041, 1.0249, 1.0687, 1.1154, 1.1544,
+    1.1848, 1.2083, 1.2267, 1.2416, 1.2539, 1.2644
+])  # kJ/kg·K
+
+h_table = np.array([
+    273.92, 476.32, 685.48, 903.98, 1131.1, 1365.2, 1604.6, 1848.2, 2095.1,2344.7, 2596.6
+])  # kJ/kg
+
+s0_table = np.array([
+    6.6119, 7.1673, 7.5356,
+    7.8195, 8.0536, 8.2535,
+    8.4281, 8.5831, 8.7225,
+    8.8491, 8.9650
+])  # kJ/kg·K
+
+
+
+# === Compute properties at 0–2000°C (steps of 200) ===
+T_vals = np.arange(0, 2001, 200)
+Cp_poly, Cp_mix = [], []
+h_poly, h_mix = [], []
+s0_poly, s0_mix = [], []
+
+for T in T_vals:
+    _, h1, Cp1, _, _, _, s01 = DryAirMix.get_properties(T, 101, None)
+    _, h2, Cp2, _, _, _, s02 = DryAirApprox.get_properties(T, 101, None)
+    Cp_poly.append(Cp1)
+    Cp_mix.append(Cp2)
+    h_poly.append(h1)
+    h_mix.append(h2)
+    s0_poly.append(s01)
+    s0_mix.append(s02)
+
+# Convert to arrays
+Cp_poly = np.array(Cp_poly)
+Cp_mix = np.array(Cp_mix)
+h_poly = np.array(h_poly)
+h_mix = np.array(h_mix)
+s0_poly = np.array(s0_poly)
+s0_mix = np.array(s0_mix)
+
+# === Plot 1: Cp ===
+plt.figure(figsize=(8, 5))
+plt.plot(T_vals, Cp_poly, 'r-o', label="Dry Air (Polynomial)")
+plt.plot(T_vals, Cp_mix, 'b-s', label="Dry Air (0.79 N₂ + 0.21 O₂)")
+plt.plot(T_table, Cp_table, 'k^--', label="Table 5S Reference")
+plt.xlabel("Temperature [°C]")
+plt.ylabel("Cp [kJ/kg·K]")
+plt.title("Dry Air Specific Heat (Cp) Comparison")
+plt.grid(True)
+plt.legend()
+plt.tight_layout()
+plt.show()
+
+# === Plot 2: h ===
+plt.figure(figsize=(8, 5))
+plt.plot(T_vals, h_poly, 'r-o', label="Dry Air (Polynomial)")
+plt.plot(T_vals, h_mix, 'b-s', label="Dry Air (0.79 N₂ + 0.21 O₂)")
+plt.plot(T_table, h_table, 'k^--', label="Table 5S Reference")
+plt.xlabel("Temperature [°C]")
+plt.ylabel("h [kJ/kg]")
+plt.title("Dry Air Enthalpy (h) Comparison")
+plt.grid(True)
+plt.legend()
+plt.tight_layout()
+plt.show()
+
+# === Plot 3: s⁰ ===
+plt.figure(figsize=(8, 5))
+plt.plot(T_vals, s0_poly, 'r-o', label="Dry Air (Polynomial)")
+plt.plot(T_vals, s0_mix, 'b-s', label="Dry Air (0.79 N₂ + 0.21 O₂)")
+plt.plot(T_table, s0_table, 'k^--', label="Table 5S Reference")
+plt.xlabel("Temperature [°C]")
+plt.ylabel("s⁰ [kJ/kg·K]")
+plt.title("Dry Air Standard Entropy (s⁰) Comparison")
+plt.grid(True)
+plt.legend()
+plt.tight_layout()
+plt.show()
