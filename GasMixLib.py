@@ -17,15 +17,20 @@ class GasPart():
         self.xi = self.yi*self.Mi/M
         return self.xi
     def get_Cpi_Cvi(self, T):
-        Tz = T / 1000
+        Tz = T/10000
         Cpi = 0
         Mi = self.Mi
         A = self.A
         for i , Aj in enumerate(A):
-            Cpi += Aj * (Tz ** i)
-        Cpi /= Mi
-        Cvi = Cpi - self.Ri
+            if i==0:
+                Cpi+=Aj
+            else:
+                Cpi += Aj * (Tz ** i)
+        Cpi_bar = Cpi*Mi
+        Cvi_bar = Cpi_bar - self.R/1000
+        Cvi=Cvi_bar/Mi
         ki = Cpi/Cvi
+        print(ki)
         return Cpi, Cvi, ki
     def get_hi(self, T, Tref=0.5):
         A = self.A
@@ -49,7 +54,7 @@ class GasPart():
         # j = 0 term: integral(A0 / T) dT = A0 * ln(T/Tref)
         s0i += A[0] * np.log(T / Tref)
 
-        # j >= 1 terms: ∫ (A_j * T^(j-1) / 1000^j) dT = A_j / (j * 1000^j) * (T^j - Tref^j)
+        # j >= 1 terms: integral (A_j * T^(j-1) / 1000^j) dT = A_j / (j * 1000^j) * (T^j - Tref^j)
         for j, Aj in enumerate(A[1:], start=1):
             s0i += Aj / (j * 1000 ** j) * (T ** j - Tref ** j)
 
@@ -84,16 +89,20 @@ class GasPart():
 
         T_range = np.linspace(T_min+273.15, T_max+273.15, n_points)
         Cp_values = []
+        Cv_values = []
+        k_values = []
 
         for T in T_range:
-            Cpi, _, _ = self.get_Cpi_Cvi(T)
-            Cp_values.append(Cpi)  # Cpi is already in J/kg·K because you divide by Mi inside
+            Cpi, Cvi, k = self.get_Cpi_Cvi(T)
+            Cp_values.append(Cpi)
+            Cv_values.append(Cvi)
+            k_values.append(k)
 
         # Plot Cp vs T
         plt.figure(figsize=(8, 5))
         plt.plot(T_range-273.15, Cp_values, label=f'{self.name}', lw=2, color='darkred')
-        plt.xlabel("Temperature [K]", fontsize=12)
-        plt.ylabel("Cp [J/kg·K]", fontsize=12)
+        plt.xlabel("Temperature [C]", fontsize=12)
+        plt.ylabel("Cp [kJ/kg·K]", fontsize=12)
         plt.title(f"Specific Heat Cp vs Temperature for {self.name}", fontsize=14)
         plt.grid(True)
         plt.legend()
@@ -136,15 +145,15 @@ class Gas():
 
         # Compute Cp for each temperature
         for T in T_range:
-            _, _, Cp, _, _, _, _ = self.get_properties(T, 1,
+            _, _, Cp, _, _, _, _ = self.get_properties(T, 101000,
                                                    None)
             Cp_values.append(Cp)
 
         # Plot Cp vs T
         plt.figure(figsize=(8, 5))
         plt.plot(T_range, Cp_values, color='b', lw=2)
-        plt.xlabel("Temperature [K]", fontsize=12)
-        plt.ylabel("Cp [J/kg·K]", fontsize=12)
+        plt.xlabel("Temperature [C]", fontsize=12)
+        plt.ylabel("Cp [kJ/kg·K]", fontsize=12)
         plt.title(f"Specific Heat Cp vs Temperature for {self.name}", fontsize=14)
         plt.grid(True)
         plt.show()
@@ -208,7 +217,6 @@ A_H2O = [
 A_DryAir = [
     0.992313,
     0.236688,
-    0.0,
     -1.852148,
     6.083152,
     -8.893933,
@@ -220,8 +228,6 @@ A_DryAir = [
     0.001053
 ]
 
-
-
 O2 = GasPart("O2", 31.999/1000, np.array(A_O2))
 N2 = GasPart("N2", 28.0134/1000, np.array(A_N2))
 CO2 = GasPart("CO2", 44.009/1000, np.array(A_CO2))
@@ -232,3 +238,8 @@ DryAir.set_yi(1)
 DryAirMix = Gas("Dry Air", [DryAir])
 DryAirMix.plot_Cp_vs_T(T_min=0, T_max=2000, n_points=100)
 DryAir.plot_Cp_vs_T(T_min=0, T_max=2000, n_points=100)
+N2.set_yi(0.79)
+O2.set_yi(0.21)
+DryAirApprox = Gas("Dry Approx", [N2, O2])
+DryAirApprox.plot_Cp_vs_T(T_min=0, T_max=2000, n_points=100)
+
