@@ -16,72 +16,60 @@ class GasPart():
     def get_xi(self, M):
         self.xi = self.yi*self.Mi/M
         return self.xi
+
     def get_Cpi_Cvi(self, T):
-        Tz = T/10000
-        Cpi = 0
-        Mi = self.Mi
-        A = self.A
-        for i , Aj in enumerate(A):
-            if i==0:
-                Cpi+=Aj
-            else:
-                Cpi += Aj * (Tz ** i)
-        Cpi_bar = Cpi*Mi
-        Cvi_bar = Cpi_bar - self.R/1000
-        Cvi=Cvi_bar/Mi
-        ki = Cpi/Cvi
-        print(ki)
+        Tz = T / 10000
+        Cpi = sum(Aj * (Tz ** i) for i, Aj in enumerate(self.A))
+        Cvi = Cpi - self.Ri/1000
+        ki = Cpi / Cvi
         return Cpi, Cvi, ki
-    def get_hi(self, T, Tref=0.5):
+
+    def get_hi(self, T, Tref=298.15):
+
         A = self.A
-        Mi = self.Mi  # [kg/mol]
+        Tz = T / 10000
+        Tz_ref = Tref / 10000
 
         hi = 0.0
         for i, Ai in enumerate(A):
-            term = Ai / (1000 ** i * (i + 1)) * (T ** (i + 1) - Tref ** (i + 1))
-            hi += term
-
-        # Convert from molar (J/mol) to specific (J/kg)
-        hi /= Mi
-
+            hi += Ai * 10000.0 / (i + 1) * (Tz ** (i + 1) - Tz_ref ** (i + 1))
         return hi
-    def get_s0i(self, T, Tref=0.5):
+
+    def get_s0i(self, T, Tref=298.15):
         A = self.A
-        Mi = self.Mi  # [kg/mol]
+        Tz = T / 10000
+        Tz_ref = Tref / 10000
 
         s0i = 0.0
+        # First term: A0 * ln(T/Tref)
+        s0i += A[0] * np.log(Tz / Tz_ref)
 
-        # j = 0 term: integral(A0 / T) dT = A0 * ln(T/Tref)
-        s0i += A[0] * np.log(T / Tref)
-
-        # j >= 1 terms: integral (A_j * T^(j-1) / 1000^j) dT = A_j / (j * 1000^j) * (T^j - Tref^j)
+        # Remaining terms
         for j, Aj in enumerate(A[1:], start=1):
-            s0i += Aj / (j * 1000 ** j) * (T ** j - Tref ** j)
-
-        # Convert from molar (J/mol·K) to specific (J/kg·K)
-        s0i /= Mi
+            s0i += Aj / j * (Tz ** j - Tz_ref ** j)
 
         return s0i
-    def get_si(self, T, P, Tref=0.5, Pref=101000):
+
+    def get_si(self, T, P, Tref=298.15, Pref=101.325e3):
+
         s0i = self.get_s0i(T, Tref)
-        si = s0i-R*np.log(P/Pref)
+        si = s0i - (self.Ri / 1000) * np.log(P / Pref)
         return si
-    def get_ui(self, T, Tref=0.5):
+
+    def get_ui(self, T, Tref=298.15):
+
         A = self.A
-        Mi = self.Mi  # [kg/mol]
-        Ri = self.Ri  # [J/kg·K]
+        Tz = T / 10000
+        Tz_ref = Tref / 10000
 
+        # Integrate Cp polynomial first
         ui = 0.0
-        # Integrate Cp(T) - Ri
         for i, Ai in enumerate(A):
-            term = Ai / (1000 ** i * (i + 1)) * (T ** (i + 1) - Tref ** (i + 1))
-            ui += term
+            # Include *1000 because dT = 1000 * d(Tz)
+            ui += Ai * 10000 / (i + 1) * (Tz ** (i + 1) - Tz_ref ** (i + 1))
 
-        # Subtract the Ri * (T - Tref) term (integral of constant Ri)
-        ui -= Ri * Mi * (T - Tref)  # temporarily in molar basis
-
-        # Convert from molar (J/mol) to specific (J/kg)
-        ui /= Mi
+        # Subtract the integral of Ri (constant) to get Cv integration
+        ui -= (self.Ri / 1000) * (T - Tref)
 
         return ui
 
@@ -145,7 +133,7 @@ class Gas():
 
         # Compute Cp for each temperature
         for T in T_range:
-            _, _, Cp, _, _, _, _ = self.get_properties(T, 101000,
+            _, _, Cp, _, _, _, _ = self.get_properties(T, 101,
                                                    None)
             Cp_values.append(Cp)
 
@@ -158,6 +146,7 @@ class Gas():
         plt.grid(True)
         plt.show()
 
+# Provided coeffs
 A_O2 = [
     1.006450,
     -1.047869,
@@ -236,10 +225,60 @@ DryAir = GasPart("Dry Air", 29.96/1000, np.array(A_DryAir))
 
 DryAir.set_yi(1)
 DryAirMix = Gas("Dry Air", [DryAir])
-DryAirMix.plot_Cp_vs_T(T_min=0, T_max=2000, n_points=100)
-DryAir.plot_Cp_vs_T(T_min=0, T_max=2000, n_points=100)
+DryAirMix.plot_Cp_vs_T(T_min=0, T_max=2000, n_points=10)
+DryAir.plot_Cp_vs_T(T_min=0, T_max=2000, n_points=10)
 N2.set_yi(0.79)
 O2.set_yi(0.21)
 DryAirApprox = Gas("Dry Approx", [N2, O2])
-DryAirApprox.plot_Cp_vs_T(T_min=0, T_max=2000, n_points=100)
+DryAirApprox.plot_Cp_vs_T(T_min=0, T_max=2000, n_points=10)
+
+O2 = GasPart("O2", 31.999 / 1000, np.array(A_O2))
+N2 = GasPart("N2", 28.0134 / 1000, np.array(A_N2))
+CO2 = GasPart("CO2", 44.009 / 1000, np.array(A_CO2))
+H2O = GasPart("H2O", 18.01528 / 1000, np.array(A_H2O))
+
+# --- User input section ---
+print("=== Gas Mixture Property Calculator ===")
+
+T = float(input("Enter temperature [°C]: "))
+P = float(input("Enter pressure [kPa]: "))
+
+print("\nEnter molal composition (sum should be 1.0):")
+y_O2 = float(input(" Mole fraction of O2: "))
+y_N2 = float(input(" Mole fraction of N2: "))
+y_CO2 = float(input(" Mole fraction of CO2: "))
+y_H2O = float(input(" Mole fraction of H2O: "))
+
+# Normalize to ensure total = 1 just in case
+total_y = y_O2 + y_N2 + y_CO2 + y_H2O
+y_O2 /= total_y
+y_N2 /= total_y
+y_CO2 /= total_y
+y_H2O /= total_y
+
+# --- Assign fractions to species ---
+O2.set_yi(y_O2)
+N2.set_yi(y_N2)
+CO2.set_yi(y_CO2)
+H2O.set_yi(y_H2O)
+
+# --- Build the mixture ---
+mixture = Gas("Custom Mixture", [O2, N2, CO2, H2O])
+
+# --- Compute properties ---
+u, h, Cp, Cv, s, k, s0 = mixture.get_properties(T, P, None)
+
+# --- Display results ---
+print("\n=== Thermodynamic Properties at Given State ===")
+print(f"Temperature (°C): {T:.2f}")
+print(f"Pressure (kPa): {P:.2f}")
+print(f"--------------------------------------")
+print(f"Cp     = {Cp:.3f} kJ/kg·K")
+print(f"Cv     = {Cv:.3f} kJ/kg·K")
+print(f"k      = {k:.4f}")
+print(f"u      = {u:.3f} kJ/kg")
+print(f"h      = {h:.3f} kJ/kg")
+print(f"s⁰     = {s0:.3f} kJ/kg·K")
+print(f"s      = {s:.3f} kJ/kg·K")
+print("=======================================")
 
